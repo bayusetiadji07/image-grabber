@@ -36,6 +36,11 @@ const el = {
   pasteCount: $('#paste-count'),
   btnScanPaste: $('#btn-scan-paste'),
   btnClearPaste: $('#btn-clear-paste'),
+  gate: $('#gate'),
+  gateForm: $('#gate-form'),
+  gatePassword: $('#gate-password'),
+  gateSubmit: $('#gate-submit'),
+  gateError: $('#gate-error'),
 };
 
 const state = {
@@ -161,6 +166,11 @@ async function scan(event, html = '') {
     applyFilters();
     toast(`${state.images.length} gambar terdeteksi.`, 'ok');
   } catch (err) {
+    // Sesi habis / belum masuk → minta kata sandi lagi.
+    if (err.code === 'auth') {
+      showGate(err.message);
+      return;
+    }
     el.errorBox.hidden = false;
     el.errorBox.textContent = err.message;
     // Situs memblokir pengambilan langsung → arahkan ke mode tempel HTML.
@@ -576,5 +586,62 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !el.lightbox.hidden) closeLightbox();
 });
 
+// ------------------------------------------------------- gerbang kata sandi
+//
+// Hanya muncul bila server dijalankan dengan IG_PASSWORD (mis. saat di-deploy
+// ke Vercel). Di komputer sendiri aplikasi tetap terbuka tanpa login.
+
+function showGate(message = '') {
+  el.gate.hidden = false;
+  el.gateError.hidden = !message;
+  el.gateError.textContent = message;
+  el.gatePassword.focus();
+}
+
+function hideGate() {
+  el.gate.hidden = true;
+  el.gatePassword.value = '';
+}
+
+async function checkSession() {
+  try {
+    const res = await fetch('/api/session');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.locked && !data.authorized) showGate();
+  } catch {
+    /* offline / endpoint tak ada — biarkan terbuka */
+  }
+}
+
+el.gateForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const password = el.gatePassword.value;
+  if (!password) return;
+  el.gateSubmit.disabled = true;
+  el.gateSubmit.textContent = 'Memeriksa…';
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      hideGate();
+      toast('Berhasil masuk.', 'ok');
+      el.url.focus();
+    } else {
+      showGate(data.error || 'Kata sandi salah.');
+    }
+  } catch {
+    showGate('Gagal menghubungi server.');
+  } finally {
+    el.gateSubmit.disabled = false;
+    el.gateSubmit.textContent = 'Masuk';
+  }
+});
+
+checkSession();
 renderHistory();
 el.url.focus();

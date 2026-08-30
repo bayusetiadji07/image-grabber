@@ -192,6 +192,28 @@
 
     <div class="toast" id="toast" hidden></div>
 
+    <div class="gate" id="gate" hidden>
+      <form class="gate-card" id="gate-form">
+        <span class="gate-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="4" y="10.5" width="16" height="10" rx="2.5" />
+            <path d="M8 10.5V7.5a4 4 0 018 0v3" stroke-linecap="round" />
+          </svg>
+        </span>
+        <h2>Image Grabber terkunci</h2>
+        <p>Masukkan kata sandi untuk memakai aplikasi ini.</p>
+        <input
+          type="password"
+          id="gate-password"
+          placeholder="Kata sandi"
+          autocomplete="current-password"
+          required
+        />
+        <button type="submit" class="btn btn-primary" id="gate-submit">Masuk</button>
+        <p class="gate-error" id="gate-error" hidden></p>
+      </form>
+    </div>
+
     <form id="zip-form" method="POST" action="/api/zip" target="_blank" hidden>
       <input type="hidden" name="payload" id="zip-payload" />
     </form>

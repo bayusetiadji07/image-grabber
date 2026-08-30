@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "outputDirectory": "public",
+  "functions": {
+    "api/zip.js": { "maxDuration": 60, "memory": 1024 },
+    "api/img.js": { "maxDuration": 30 },
+    "api/scan.js": { "maxDuration": 30 },
+    "api/meta.js": { "maxDuration": 30 }
+  }
+}

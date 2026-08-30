@@ -13,3 +13,11 @@ jalan.txt
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Vercel
+.vercel
+.env*.local
+.env.local
+
+.vercel
+.env*

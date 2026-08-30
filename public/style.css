@@ -780,6 +780,84 @@ kbd {
   border-color: rgba(255, 107, 107, 0.5);
 }
 
+/* ----------------------------------------------------------- gerbang sandi */
+.gate {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(7, 10, 17, 0.92);
+  backdrop-filter: blur(8px);
+}
+
+.gate-card {
+  width: 100%;
+  max-width: 380px;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+  padding: 30px 26px;
+  background: linear-gradient(180deg, var(--panel), var(--bg-soft));
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+
+.gate-mark {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: #fff;
+  background: linear-gradient(140deg, var(--accent), var(--accent-2));
+}
+
+.gate-mark svg {
+  width: 26px;
+  height: 26px;
+}
+
+.gate-card h2 {
+  margin: 4px 0 0;
+  font-size: 19px;
+}
+
+.gate-card p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.gate-card input {
+  width: 100%;
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--text);
+  background: #0a0f19;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  outline: none;
+}
+
+.gate-card input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(79, 140, 255, 0.15);
+}
+
+.gate-card .btn {
+  width: 100%;
+}
+
+.gate-error {
+  color: #ffb4b4 !important;
+  font-size: 13px;
+}
+
 /* ----------------------------------------------------------- footer */
 .footer {
   max-width: 1400px;
