@@ -36,6 +36,32 @@ Tanpa memasang Node.js sama sekali? Salin `node.exe` portabel ke dalam folder `i
 
 Klik pratinjau untuk melihat gambar ukuran penuh.
 
+## Versi online (Vercel)
+
+Aplikasi yang sama berjalan di **<https://image-grabber-one.vercel.app>**, terkunci kata sandi — buka dari komputer atau HP mana pun tanpa memasang apa pun.
+
+Kata sandi disimpan sebagai environment variable `IG_PASSWORD` di Vercel. Mengganti kata sandi:
+
+```bash
+vercel env rm IG_PASSWORD production
+```
+
+lalu tambahkan lagi dengan nilai baru (`vercel env add IG_PASSWORD production`) dan deploy ulang (`vercel --prod`). Setelah masuk, sesi tersimpan sebagai cookie selama 30 hari.
+
+Struktur di Vercel: berkas di `public/` disajikan statis, sedangkan `api/*.js` adalah serverless function tipis yang memanggil handler yang sama di `lib/handlers.js`. Jadi satu kode dipakai dua-duanya — versi lokal tidak berubah perilakunya.
+
+### Perbedaan versi online vs lokal
+
+| Hal | Lokal | Vercel |
+|---|---|---|
+| Kata sandi | tidak ada (kecuali `IG_PASSWORD` diisi) | wajib |
+| Batas waktu unduhan ZIP | tidak ada | ~45 detik, lalu ZIP ditutup rapi |
+| Ukuran ZIP | tidak dibatasi | teruji sampai **17 MB / 60 gambar dalam 30 detik** |
+| Pembatas laju per host | efektif | lemah (tiap function berjalan terpisah) |
+| Tempel HTML | halaman sangat besar pun bisa | body permintaan dibatasi ~4,5 MB |
+
+Bila batas waktu tercapai saat mengunduh ZIP, berkasnya **tetap utuh dan bisa dibuka**; jumlah gambar yang tidak sempat masuk dicatat di `_daftar-unduhan.txt` di dalam ZIP, tinggal pilih sisanya lalu unduh lagi. Untuk unduhan yang benar-benar besar, versi lokal tetap yang paling nyaman.
+
 ## Kalau situs menolak (HTTP 403)
 
 Sebagian situs (mis. `presidenri.go.id`) berada di balik Cloudflare dengan **challenge** — servernya membalas `403` + header `Cf-Mitigated: challenge` dan hanya mau melayani setelah browser sungguhan mengerjakan verifikasi JavaScript. Tidak ada kombinasi header yang bisa menembusnya, dan aplikasi ini memang tidak berusaha mengakalinya.
@@ -85,11 +111,17 @@ Gambar `data:image/...` (base64 inline) ikut terdeteksi dan bisa diunduh.
 
 ```
 image-grabber/
-├── server.js          # HTTP server + endpoint /api/scan, /api/meta, /api/img, /api/zip
+├── server.js          # server lokal: berkas statis + routing /api/*
 ├── lib/
+│   ├── handlers.js    # seluruh logika API (dipakai lokal & Vercel)
 │   ├── scraper.js     # ekstraksi URL gambar dari HTML
 │   ├── net.js         # pembatas laju per host + retry 429/503
-│   └── zip.js         # penulis ZIP streaming tanpa dependency
+│   ├── zip.js         # penulis ZIP streaming tanpa dependency
+│   └── auth.js        # gerbang kata sandi opsional (env IG_PASSWORD)
+├── api/               # serverless function Vercel (pembungkus tipis)
+│   ├── scan.js  meta.js  img.js  zip.js
+│   └── login.js  session.js  _wrap.js
 ├── public/            # antarmuka (index.html, style.css, app.js)
+├── vercel.json        # output statis public/ + maxDuration per function
 └── jalankan.cmd       # pintasan menjalankan di Windows
 ```
