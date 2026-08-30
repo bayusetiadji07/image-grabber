@@ -80,6 +80,17 @@ Keduanya diselesaikan dengan cara yang sama: mengambil isi halaman **yang sudah 
 
 Isi halaman dikirim langsung antar-tab (`postMessage`), tidak lewat server dan tidak ada yang perlu disalin. Karena diambil dari tab yang memang sudah login, halaman berproteksi pun terbaca.
 
+### Gambar yang hanya bisa diakses setelah login
+
+Mendeteksi URL gambar saja tidak cukup: server Image Grabber mengambil gambar **tanpa sesi login Anda**, sehingga situs berproteksi membalas halaman login. Dulu halaman itu ikut tersimpan sebagai berkas `.jpg` yang tidak bisa dibuka — itulah "berkas rusak".
+
+Sekarang:
+
+- **Isi setiap berkas diperiksa** (magic bytes, bukan sekadar `Content-Type`). Bila yang datang ternyata halaman web, berkas itu **tidak** diserahkan; kartu menampilkan alasannya, dan isi ZIP tidak pernah tercemar berkas rusak — kegagalan dicatat di `_daftar-unduhan.txt`.
+- **Tab asal dipakai sebagai jalan masuk.** Selama tab tempat Anda mengklik bookmarklet masih terbuka, aplikasi meminta tab itu mengambilkan gambarnya. Karena permintaan berjalan di sana, cookie sesi ikut terbawa dan gambar berproteksi tetap terambil — lalu dipakai untuk pratinjau, unduhan satuan, maupun ZIP.
+
+Karena itu: **jangan tutup tab sumbernya** selama masih mengunduh. Batasnya, cara ini bekerja untuk gambar yang satu domain dengan halamannya; gambar di domain lain yang menolak CORS tetap tidak bisa dibaca, dan alasannya akan tertulis di kartu.
+
 ### Cara manual (bila bookmark tidak bisa dipakai)
 
 Salin DOM yang sudah dirender lewat DevTools (F12) → Console — **bukan** Ctrl+U:

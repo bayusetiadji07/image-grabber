@@ -284,6 +284,19 @@ function pumpThumbs() {
   }
 }
 
+// Menanyakan ke server kenapa sebuah gambar gagal diambil, supaya kartu bisa
+// menampilkan alasannya alih-alih "gagal" tanpa keterangan.
+async function alasanGagal(url) {
+  try {
+    const res = await fetch(proxyUrl(url));
+    if (res.ok) return '';
+    const data = await res.json().catch(() => ({}));
+    return data.error || `Gagal (HTTP ${res.status}).`;
+  } catch {
+    return 'Tidak bisa menghubungi server.';
+  }
+}
+
 // Pasang (atau pasang ulang) elemen pratinjau pada sebuah kartu.
 function mountThumb(card, img) {
   const box = card.querySelector('.thumb');
@@ -299,14 +312,38 @@ function mountThumb(card, img) {
     const dimEl = card.querySelector('.dim');
     if (dimEl) dimEl.textContent = `${img.w}×${img.h}`;
   });
-  thumbImg.addEventListener('error', () => {
+
+  thumbImg.addEventListener('error', async () => {
     img.broken = true;
-    box.innerHTML =
-      '<span class="fail">Pratinjau gagal dimuat<br /><button type="button" class="mini act-retry">Coba lagi</button></span>';
     box.style.cursor = 'default';
+
+    // Kemungkinan gambar butuh sesi login. Tab asal masih terbuka dan masih
+    // login — minta dia yang mengambilkannya.
+    if (!img.blobUrl && bisaMintaKeTabAsal()) {
+      box.innerHTML = '<span class="fail">Mencoba lewat tab asal…</span>';
+      try {
+        const blob = await mintaGambarKeTabAsal(img.url);
+        if (blob && blob.size) {
+          img.blob = blob;
+          img.blobUrl = URL.createObjectURL(blob);
+          img.size = blob.size;
+          img.lewatTabAsal = true;
+          patchCard(img);
+          mountThumb(card, img);
+          return;
+        }
+      } catch {
+        /* jatuh ke penjelasan di bawah */
+      }
+    }
+
+    const alasan = await alasanGagal(img.url);
+    box.innerHTML =
+      `<span class="fail">${escapeHtml(alasan || 'Pratinjau gagal dimuat.')}<br />` +
+      '<button type="button" class="mini act-retry">Coba lagi</button></span>';
   });
 
-  enqueueThumb(thumbImg, proxyUrl(img.url));
+  enqueueThumb(thumbImg, img.blobUrl || proxyUrl(img.url));
 }
 
 // Kartu baru dimuat (pratinjau + metadata) saat mendekati layar.
@@ -354,7 +391,7 @@ function renderGrid() {
           <span class="size">${formatBytes(img.size)}</span>
         </div>
         <div class="card-actions">
-          <a class="mini" href="${proxyUrl(img.url, { download: true, name: img.name })}" download>Unduh</a>
+          <a class="mini act-unduh" href="${proxyUrl(img.url, { download: true, name: img.name })}" download>Unduh</a>
           <button class="mini act-copy" type="button">Salin URL</button>
         </div>
       </div>`;
@@ -496,6 +533,17 @@ el.grid.addEventListener('click', (e) => {
     mountThumb(card, img);
     return;
   }
+
+  // Gambar yang diambil lewat tab asal sudah ada di memori — unduh langsung,
+  // jangan lewat server (server tidak punya sesi login ke situs itu).
+  if (e.target.classList.contains('act-unduh') && img.blobUrl) {
+    e.preventDefault();
+    const a = document.createElement('a');
+    a.href = img.blobUrl;
+    a.download = img.name;
+    a.click();
+    return;
+  }
   if (e.target.closest('.thumb') && !img.broken) openLightbox(img);
 });
 
@@ -520,9 +568,48 @@ $('#copy-urls').addEventListener('click', () => {
   );
 });
 
-el.btnZip.addEventListener('click', () => {
+function blobKeDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = () => reject(new Error('Gagal membaca gambar dari memori.'));
+    fr.readAsDataURL(blob);
+  });
+}
+
+el.btnZip.addEventListener('click', async () => {
   const picked = state.images.filter((i) => i.selected);
   if (!picked.length) return;
+
+  // Gambar yang hanya bisa diambil lewat tab asal sudah ada di memori browser.
+  // Server tidak bisa mengambilnya sendiri, jadi isinya dititipkan sebagai
+  // data URI di dalam permintaan ZIP.
+  const lewatMemori = picked.filter((i) => i.blob);
+  if (lewatMemori.length) {
+    const totalByte = lewatMemori.reduce((s, i) => s + i.blob.size, 0);
+    // Vercel membatasi ukuran body permintaan (~4,5 MB); versi lokal jauh lebih lega.
+    const lokal = ['localhost', '127.0.0.1'].includes(location.hostname);
+    const batas = lokal ? 20 * 1024 * 1024 : 3 * 1024 * 1024;
+    if (totalByte > batas) {
+      toast(
+        `Gambar dari tab asal terlalu besar untuk satu ZIP (${formatBytes(totalByte)}, batas ${formatBytes(batas)}). ` +
+          (lokal ? 'Pilih lebih sedikit, atau unduh satu per satu.' : 'Pilih lebih sedikit, atau pakai versi lokal.'),
+        'bad'
+      );
+      return;
+    }
+    toast(`Menyiapkan ${lewatMemori.length} gambar dari memori…`);
+    try {
+      await Promise.all(
+        lewatMemori.map(async (i) => {
+          if (!i.dataUrl) i.dataUrl = await blobKeDataUrl(i.blob);
+        })
+      );
+    } catch (err) {
+      toast(err.message, 'bad');
+      return;
+    }
+  }
 
   let host = 'gambar';
   try {
@@ -533,7 +620,7 @@ el.btnZip.addEventListener('click', () => {
   const stamp = new Date().toISOString().slice(0, 10);
 
   el.zipPayload.value = JSON.stringify({
-    items: picked.map((i) => ({ url: i.url, name: i.name })),
+    items: picked.map((i) => ({ url: i.dataUrl || i.url, name: i.name })),
     referer: state.pageUrl,
     zipName: `${host}-${stamp}`,
   });
@@ -618,8 +705,21 @@ function bookmarkletCode() {
     'html:document.documentElement.outerHTML};' +
     'var n=0,t=setInterval(function(){n++;try{w.postMessage(d,A);}catch(e){}' +
     'if(n>50){clearInterval(t);}},400);' +
+    // Tab ini tetap melayani permintaan gambar dari aplikasi. Karena fetch
+    // dijalankan DI SINI, cookie sesi situs ikut terbawa — itulah cara gambar
+    // yang butuh login tetap bisa diambil.
     "window.addEventListener('message',function(e){" +
-    "if(e.origin===A&&e.data==='ig-collect-ok'){clearInterval(t);}});" +
+    "if(e.origin!==A){return;}" +
+    "if(e.data==='ig-collect-ok'){clearInterval(t);return;}" +
+    "var m=e.data;if(!m||m.type!=='ig-fetch'){return;}" +
+    "fetch(m.url,{credentials:'include',mode:'cors'})" +
+    '.then(function(r){if(!r.ok){throw new Error("HTTP "+r.status);}' +
+    'return r.blob();})' +
+    '.then(function(b){return b.arrayBuffer().then(function(ab){' +
+    "w.postMessage({type:'ig-bytes',id:m.id,ok:true,tipe:b.type,bytes:ab},A,[ab]);});})" +
+    '.catch(function(err){' +
+    "w.postMessage({type:'ig-bytes',id:m.id,ok:false,pesan:String(err.message||err)},A);});" +
+    '});' +
     '})()'
   );
 }
@@ -641,6 +741,53 @@ function siapkanBookmarklet() {
   });
 }
 
+// --------------------------------------- ambil gambar lewat tab asal (login)
+//
+// Bila proxy server ditolak situs sumber (gambar butuh sesi login), aplikasi
+// meminta tab asal — yang masih terbuka dan masih login — untuk mengambil
+// gambarnya, lalu mengirim balik isinya.
+
+let tabAsal = null; // window pengirim bookmarklet
+let nomorPermintaan = 0;
+const menungguBytes = new Map();
+
+function bisaMintaKeTabAsal() {
+  try {
+    return Boolean(tabAsal && !tabAsal.closed);
+  } catch {
+    return false;
+  }
+}
+
+function mintaGambarKeTabAsal(url, timeoutMs = 20000) {
+  return new Promise((resolve, reject) => {
+    if (!bisaMintaKeTabAsal()) {
+      reject(new Error('Tab asal sudah tertutup.'));
+      return;
+    }
+    const id = `p${++nomorPermintaan}`;
+    const batas = setTimeout(() => {
+      menungguBytes.delete(id);
+      reject(new Error('Tab asal tidak menjawab.'));
+    }, timeoutMs);
+
+    menungguBytes.set(id, { resolve, reject, batas });
+    tabAsal.postMessage({ type: 'ig-fetch', id, url }, '*');
+  });
+}
+
+function tanganiBytesMasuk(data) {
+  const tunggu = menungguBytes.get(data.id);
+  if (!tunggu) return;
+  menungguBytes.delete(data.id);
+  clearTimeout(tunggu.batas);
+  if (data.ok && data.bytes) {
+    tunggu.resolve(new Blob([data.bytes], { type: data.tipe || 'application/octet-stream' }));
+  } else {
+    tunggu.reject(new Error(data.pesan || 'Tab asal gagal mengambil gambar.'));
+  }
+}
+
 // Menerima kiriman dari bookmarklet. Hanya dilayani bila tab ini memang dibuka
 // olehnya (?collect=1), supaya halaman lain tidak bisa menyuruh kita memindai.
 function dengarkanKiriman() {
@@ -652,8 +799,18 @@ function dengarkanKiriman() {
 
   window.addEventListener('message', (event) => {
     const data = event.data;
-    if (!data || data.type !== 'ig-collect') return;
+    if (!data) return;
+
+    if (data.type === 'ig-bytes') {
+      tanganiBytesMasuk(data);
+      return;
+    }
+
+    if (data.type !== 'ig-collect') return;
     if (typeof data.html !== 'string' || typeof data.url !== 'string') return;
+
+    // Simpan tab pengirim: dia yang punya sesi login ke situs sumber.
+    tabAsal = event.source;
 
     // Beri tahu pengirim agar berhenti mengulang.
     try {
