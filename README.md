@@ -62,6 +62,25 @@ Struktur di Vercel: berkas di `public/` disajikan statis, sedangkan `api/*.js` a
 
 Bila batas waktu tercapai saat mengunduh ZIP, berkasnya **tetap utuh dan bisa dibuka**; jumlah gambar yang tidak sempat masuk dicatat di `_daftar-unduhan.txt` di dalam ZIP, tinggal pilih sisanya lalu unduh lagi. Untuk unduhan yang benar-benar besar, versi lokal tetap yang paling nyaman.
 
+## Kalau yang terdeteksi cuma ikon dan logo
+
+Dua sebab tersering, dan aplikasi ini sekarang **mengenali keduanya lalu menjelaskannya** di kotak peringatan kuning:
+
+1. **Halaman butuh login.** Server dialihkan ke halaman login, jadi yang terpindai adalah halaman login. Terlihat dari peringatan yang menyebut `dialihkan ke /login`.
+2. **Gambar dimuat JavaScript setelah halaman terbuka** — umum pada daftar produk, galeri, dan dasbor. Petunjuk terkuatnya: ada tag `<img>` yang alamatnya masih berupa placeholder template seperti `${mobileImgUrl}` atau `{{ foto }}`. Placeholder semacam itu dibuang dari hasil (pasti gagal diunduh) dan dihitung sebagai bukti.
+
+Keduanya diselesaikan dengan cara yang sama: **mode Tempel HTML**, tapi wajib menyalin dari DOM yang sudah dirender — bukan Ctrl+U.
+
+```js
+copy(document.documentElement.outerHTML)
+```
+
+Jalankan di DevTools (F12) → Console, saat halaman sudah terbuka penuh dan sudah login. Gulir dulu sampai bawah bila gambarnya lazy-load, supaya semuanya sempat termuat.
+
+Beacon pelacak (Facebook Pixel, Google Analytics, dan sejenisnya) otomatis dibuang karena bukan gambar yang dicari.
+
+> **Catatan:** untuk halaman internal atau yang berisi data pribadi, pakai **versi lokal**. Menempelkan HTML-nya ke versi Vercel berarti mengirim isi halaman itu ke server.
+
 ## Kalau situs menolak (HTTP 403)
 
 Sebagian situs (mis. `presidenri.go.id`) berada di balik Cloudflare dengan **challenge** — servernya membalas `403` + header `Cf-Mitigated: challenge` dan hanya mau melayani setelah browser sungguhan mengerjakan verifikasi JavaScript. Tidak ada kombinasi header yang bisa menembusnya, dan aplikasi ini memang tidak berusaha mengakalinya.

@@ -10,6 +10,7 @@ const el = {
   riwayat: $('#riwayat'),
   pageInfo: $('#page-info'),
   errorBox: $('#error-box'),
+  noticeBox: $('#notice-box'),
   results: $('#results'),
   placeholder: $('#placeholder'),
   stats: $('#stats'),
@@ -124,6 +125,7 @@ async function scan(event, html = '') {
 
   setLoading(true, Boolean(html));
   el.errorBox.hidden = true;
+  el.noticeBox.hidden = true;
   el.pastePanel.classList.remove('highlight');
 
   try {
@@ -152,6 +154,17 @@ async function scan(event, html = '') {
       `Sumber: <strong>${escapeHtml(data.title || '(tanpa judul)')}</strong> — ${escapeHtml(data.pageUrl)}` +
       (data.fromPaste ? ' <em>(dari HTML tempelan)</em>' : '');
     if (data.fromPaste) el.pastePanel.open = false;
+
+    // Halaman minta login / dirender JavaScript → jelaskan dan buka mode tempel.
+    el.noticeBox.hidden = !data.notice;
+    if (data.notice) {
+      el.noticeBox.innerHTML = escapeHtml(data.notice).replace(
+        'copy(document.documentElement.outerHTML)',
+        '<code>copy(document.documentElement.outerHTML)</code>'
+      );
+      el.pastePanel.open = true;
+      el.pastePanel.classList.add('highlight');
+    }
 
     if (!state.images.length) {
       el.results.hidden = true;
