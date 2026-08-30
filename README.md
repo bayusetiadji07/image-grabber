@@ -1,0 +1,95 @@
+# Image Grabber
+
+Aplikasi lokal untuk **mendeteksi semua gambar di sebuah halaman web** lalu **mengunduhnya secara massal (ZIP) atau memilih satu per satu**.
+
+Tanpa dependency sama sekali — hanya Node.js 18+ (di komputer ini sudah ada Node v24).
+
+## Menjalankan
+
+Klik dua kali `jalankan.cmd` — browser terbuka sendiri di **http://localhost:3025**. Atau lewat terminal:
+
+```bash
+node server.js
+```
+
+Biarkan jendela hitam itu terbuka selama aplikasi dipakai; menutupnya = mematikan server. Ganti port dengan `set PORT=4000` bila perlu (kalau 3025 terpakai, aplikasi otomatis pindah ke 3026, 3027, dan seterusnya).
+
+## Menjalankan di komputer lain
+
+1. **Salin seluruh isi folder** `image-grabber` (server.js, folder `lib`, folder `public`, `jalankan.cmd`, `package.json`) — bukan hanya `jalankan.cmd`. Menyalin lewat ZIP paling aman.
+2. Komputer tujuan harus punya **Node.js 18 atau lebih baru**. Cek dengan membuka Command Prompt lalu ketik `node -v`. Kalau muncul pesan "not recognized", unduh installer **LTS** di <https://nodejs.org>, pasang dengan pilihan bawaan (biarkan *Add to PATH* tercentang), lalu **buka ulang** Command Prompt.
+3. Klik dua kali `jalankan.cmd`. Berkas ini portabel: ia pindah sendiri ke folder tempat ia berada, mencari Node di PATH maupun di lokasi pemasangan umum, dan **berhenti dengan pesan yang jelas** (jendela tidak langsung tertutup) bila ada yang kurang.
+
+Tidak ada `npm install`, tidak ada koneksi internet yang dibutuhkan untuk pemasangan — hanya untuk mengambil gambar dari situs, tentu saja.
+
+Tanpa memasang Node.js sama sekali? Salin `node.exe` portabel ke dalam folder `image-grabber` (atau ke subfolder `node\`); launcher akan memakainya.
+
+**Catatan:** server hanya mendengarkan di `127.0.0.1`, jadi tidak bisa diakses komputer lain di jaringan. Bila memang ingin dibuka dari HP/komputer lain di jaringan lokal, jalankan `set HOST=0.0.0.0 & node server.js` — sadari aplikasi ini tidak punya autentikasi.
+
+## Cara pakai
+
+1. Tempel alamat halaman (boleh tanpa `https://`, mis. `antaranews.com/foto`) lalu tekan **Pindai Halaman**.
+2. Gambar muncul sebagai kartu: pratinjau, nama berkas, dimensi asli, ukuran berkas, format, dan sumber temuan.
+3. Saring & urutkan sesuai kebutuhan (kata kunci, format, lebar minimum, ukuran minimum, sembunyikan ikon mungil).
+4. Centang gambar yang diinginkan — atau **Pilih semua tampil** untuk unduhan massal.
+5. Tekan **Unduh N gambar (ZIP)**. Bisa juga **Unduh** per kartu, atau **Salin URL terpilih**.
+
+Klik pratinjau untuk melihat gambar ukuran penuh.
+
+## Kalau situs menolak (HTTP 403)
+
+Sebagian situs (mis. `presidenri.go.id`) berada di balik Cloudflare dengan **challenge** — servernya membalas `403` + header `Cf-Mitigated: challenge` dan hanya mau melayani setelah browser sungguhan mengerjakan verifikasi JavaScript. Tidak ada kombinasi header yang bisa menembusnya, dan aplikasi ini memang tidak berusaha mengakalinya.
+
+Jalan keluarnya ada di panel **"Situs menolak (403) atau isinya dirender JavaScript? Tempel HTML halaman"** — panel ini terbuka sendiri saat pemindaian ditolak:
+
+1. Buka halaman itu di browser sampai termuat penuh (verifikasi Cloudflare selesai di sana).
+2. <kbd>Ctrl</kbd>+<kbd>U</kbd> → <kbd>Ctrl</kbd>+<kbd>A</kbd> → <kbd>Ctrl</kbd>+<kbd>C</kbd>.
+   Untuk halaman yang isinya dirender JavaScript, pakai DevTools → Console → `copy(document.documentElement.outerHTML)` supaya yang tersalin adalah DOM setelah render.
+3. Pastikan kotak alamat di atas berisi URL halaman itu (dipakai untuk menyelesaikan URL relatif dan sebagai `Referer` saat mengunduh), lalu tempel HTML-nya dan tekan **Pindai dari HTML**.
+
+Setelah itu semua fitur berjalan normal: pratinjau, filter, unduh satuan, dan ZIP massal.
+
+Untuk 403 yang sifatnya cuma penyaringan header, aplikasi sudah menirukan header navigasi Chrome lengkap (`Sec-Fetch-*`, `sec-ch-ua`, `Upgrade-Insecure-Requests`) dan otomatis mencoba ulang sekali dengan profil header polos sebelum menyerah.
+
+## Yang dideteksi
+
+| Sumber | Keterangan |
+|---|---|
+| `img` | `src`, `srcset` (varian terbesar), dan belasan atribut lazy-load (`data-src`, `data-original`, `data-lazy-src`, …) |
+| `picture` | `<source srcset>` di dalam `<picture>` |
+| `poster` | atribut `poster` pada `<video>` |
+| `meta` | Open Graph & Twitter Card (`og:image`, `twitter:image`) |
+| `ikon` | favicon, `apple-touch-icon`, `preload as=image` |
+| `css` | `background-image: url(...)` pada atribut `style` maupun blok `<style>` |
+| `tautan` | `<a href="...jpg">` yang menunjuk langsung ke berkas gambar |
+| `dalam` | URL gambar yang tertanam di script/JSON — hanya bila **Pemindaian dalam** dinyalakan |
+
+Gambar `data:image/...` (base64 inline) ikut terdeteksi dan bisa diunduh.
+
+## Catatan teknis
+
+- **Server sebagai proxy.** Browser tidak boleh membaca halaman lintas domain (CORS), jadi pengambilan HTML, pratinjau, dan unduhan semuanya lewat server Node lokal. Header `Referer`/`Origin` diteruskan agar situs yang memblokir hotlink tetap mau melayani.
+- **Sopan terhadap situs sumber.** Maksimal 4 permintaan bersamaan per host dengan jeda ~90 ms, plus percobaan ulang otomatis saat dibalas `429`/`503`. Pratinjau dan pengukuran berkas hanya dijalankan untuk kartu yang mendekati layar — halaman dengan ratusan gambar (mis. Wikipedia) tidak lagi memicu blokir laju.
+- **Tombol "Ukur semua ukuran"** memaksa pengukuran seluruh gambar; diperlukan bila ingin memfilter berdasarkan ukuran berkas atau melihat total unduhan yang akurat.
+- **ZIP ditulis sendiri** (`lib/zip.js`, metode *store*) dan dialirkan langsung ke browser, jadi tidak ada berkas sementara di disk. Di dalamnya disertakan `_daftar-unduhan.txt` berisi ringkasan berhasil/gagal.
+- Berkas bernama sama otomatis diberi akhiran ` (2)`, ` (3)`, dan ekstensi ditambal dari `Content-Type` bila URL tidak punya ekstensi.
+
+## Batasan
+
+- Halaman yang isinya dirender JavaScript (SPA) hanya terbaca bila URL gambarnya ada di HTML awal — nyalakan **Pemindaian dalam**, atau pakai mode **Tempel HTML** dengan `copy(document.documentElement.outerHTML)`.
+- Situs di balik Cloudflare/anti-bot membalas `403`; tidak ada upaya melewati proteksi tersebut — pakai mode **Tempel HTML**.
+- Server ini mengambil URL apa pun yang diberikan (termasuk alamat jaringan lokal). Jalankan hanya di komputer sendiri, jangan diekspos ke internet.
+- Gunakan dengan menghormati hak cipta dan ketentuan layanan situs sumber.
+
+## Struktur
+
+```
+image-grabber/
+├── server.js          # HTTP server + endpoint /api/scan, /api/meta, /api/img, /api/zip
+├── lib/
+│   ├── scraper.js     # ekstraksi URL gambar dari HTML
+│   ├── net.js         # pembatas laju per host + retry 429/503
+│   └── zip.js         # penulis ZIP streaming tanpa dependency
+├── public/            # antarmuka (index.html, style.css, app.js)
+└── jalankan.cmd       # pintasan menjalankan di Windows
+```

@@ -1,0 +1,15 @@
+# dependensi (aplikasi ini sengaja tanpa dependency, tapi jaga-jaga)
+node_modules/
+
+# keluaran & berkas sementara
+*.log
+log.txt
+log2.txt
+satu.txt
+dua.txt
+jalan.txt
+
+# berkas sistem
+Thumbs.db
+desktop.ini
+.DS_Store
