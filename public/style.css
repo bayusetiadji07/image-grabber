@@ -328,6 +328,67 @@ main {
   gap: 11px;
 }
 
+.grab-tool {
+  padding: 13px 15px;
+  border-radius: 10px;
+  background: rgba(79, 140, 255, 0.08);
+  border: 1px solid rgba(79, 140, 255, 0.32);
+}
+
+.grab-tool small {
+  display: block;
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.grab-title {
+  margin: 0 0 9px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+.paste-body > .grab-title {
+  margin-top: 4px;
+}
+
+.grab-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 9px 0 2px;
+}
+
+.bookmarklet {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 17px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-radius: 10px;
+  box-shadow: 0 6px 16px rgba(79, 140, 255, 0.3);
+  cursor: grab;
+  user-select: none;
+}
+
+.bookmarklet::before {
+  content: "⇱";
+  font-size: 15px;
+  opacity: 0.85;
+}
+
+.bookmarklet:active {
+  cursor: grabbing;
+}
+
 .paste-steps {
   margin: 0;
   padding-left: 20px;

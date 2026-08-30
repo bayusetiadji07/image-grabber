@@ -69,13 +69,26 @@ Dua sebab tersering, dan aplikasi ini sekarang **mengenali keduanya lalu menjela
 1. **Halaman butuh login.** Server dialihkan ke halaman login, jadi yang terpindai adalah halaman login. Terlihat dari peringatan yang menyebut `dialihkan ke /login`.
 2. **Gambar dimuat JavaScript setelah halaman terbuka** — umum pada daftar produk, galeri, dan dasbor. Petunjuk terkuatnya: ada tag `<img>` yang alamatnya masih berupa placeholder template seperti `${mobileImgUrl}` atau `{{ foto }}`. Placeholder semacam itu dibuang dari hasil (pasti gagal diunduh) dan dihitung sebagai bukti.
 
-Keduanya diselesaikan dengan cara yang sama: **mode Tempel HTML**, tapi wajib menyalin dari DOM yang sudah dirender — bukan Ctrl+U.
+Keduanya diselesaikan dengan cara yang sama: mengambil isi halaman **yang sudah dirender di browser Anda**, bukan yang diambil server.
+
+### Cara termudah: tombol "Ambil Gambar" (bookmarklet)
+
+1. Di Image Grabber, buka panel **Tempel HTML halaman**.
+2. **Seret** tombol biru *Ambil Gambar* ke bilah bookmark browser (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> bila bilahnya tersembunyi). Kalau menyeret sulit, klik **Atau salin kodenya**, lalu buat bookmark baru dan tempelkan kode itu sebagai alamatnya.
+3. Buka halaman yang ingin diambil — pastikan sudah login dan sudah digulir sampai bawah supaya gambar lazy-load ikut termuat.
+4. Klik bookmark **Ambil Gambar**. Tab baru terbuka dan langsung memindai isinya.
+
+Isi halaman dikirim langsung antar-tab (`postMessage`), tidak lewat server dan tidak ada yang perlu disalin. Karena diambil dari tab yang memang sudah login, halaman berproteksi pun terbaca.
+
+### Cara manual (bila bookmark tidak bisa dipakai)
+
+Salin DOM yang sudah dirender lewat DevTools (F12) → Console — **bukan** Ctrl+U:
 
 ```js
 copy(document.documentElement.outerHTML)
 ```
 
-Jalankan di DevTools (F12) → Console, saat halaman sudah terbuka penuh dan sudah login. Gulir dulu sampai bawah bila gambarnya lazy-load, supaya semuanya sempat termuat.
+Lalu tempel di kotak yang tersedia. Catatan: Chrome versi baru meminta Anda mengetik `allow pasting` sekali di Console sebelum boleh menempel perintah ke sana.
 
 Beacon pelacak (Facebook Pixel, Google Analytics, dan sejenisnya) otomatis dibuang karena bukan gambar yang dicari.
 

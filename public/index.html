@@ -65,6 +65,31 @@
         <details class="paste" id="paste-panel">
           <summary>Situs menolak (403) atau isinya dirender JavaScript? Tempel HTML halaman</summary>
           <div class="paste-body">
+            <div class="grab-tool">
+              <p class="grab-title">Cara tercepat — tanpa salin-tempel</p>
+              <ol class="paste-steps">
+                <li>
+                  Seret tombol biru ini ke <strong>bilah bookmark</strong> browser (tekan
+                  <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> bila bilahnya tersembunyi):
+                  <div class="grab-row">
+                    <a class="bookmarklet" id="bookmarklet" href="#" onclick="return false">
+                      Ambil Gambar
+                    </a>
+                    <button type="button" class="btn btn-ghost" id="copy-bookmarklet">
+                      Atau salin kodenya
+                    </button>
+                  </div>
+                </li>
+                <li>Buka halaman yang ingin diambil — sudah login, sudah digulir sampai bawah.</li>
+                <li>Klik bookmark <strong>Ambil Gambar</strong> tadi. Tab baru terbuka dan langsung memindai.</li>
+              </ol>
+              <small>
+                Isi halaman yang sudah dirender dikirim langsung antar-tab, jadi gambar yang dimuat
+                JavaScript maupun halaman yang perlu login ikut terbaca. Tidak ada yang perlu disalin.
+              </small>
+            </div>
+
+            <p class="grab-title">Atau tempel HTML-nya sendiri</p>
             <ol class="paste-steps">
               <li>Buka halaman itu di browser sampai termuat penuh.</li>
               <li>

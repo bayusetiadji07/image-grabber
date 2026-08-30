@@ -599,6 +599,78 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !el.lightbox.hidden) closeLightbox();
 });
 
+// --------------------------------------------------- ambil langsung dari tab
+//
+// Bookmarklet dijalankan di halaman yang ingin diambil: ia membuka aplikasi ini
+// di tab baru lalu mengirim HTML yang SUDAH dirender lewat postMessage. Tidak
+// lewat server, jadi tidak ada urusan CORS, tidak ada yang perlu disalin, dan
+// halaman yang perlu login tetap terbaca karena isinya diambil dari tab yang
+// memang sudah login.
+
+function bookmarkletCode() {
+  const asal = location.origin;
+  return (
+    'javascript:(function(){' +
+    `var A=${JSON.stringify(asal)};` +
+    "var w=window.open(A+'/?collect=1','_blank');" +
+    "if(!w){alert('Popup diblokir. Izinkan popup untuk situs ini lalu klik lagi.');return;}" +
+    "var d={type:'ig-collect',url:location.href,title:document.title," +
+    'html:document.documentElement.outerHTML};' +
+    'var n=0,t=setInterval(function(){n++;try{w.postMessage(d,A);}catch(e){}' +
+    'if(n>50){clearInterval(t);}},400);' +
+    "window.addEventListener('message',function(e){" +
+    "if(e.origin===A&&e.data==='ig-collect-ok'){clearInterval(t);}});" +
+    '})()'
+  );
+}
+
+function siapkanBookmarklet() {
+  const kode = bookmarkletCode();
+  const tautan = $('#bookmarklet');
+  tautan.setAttribute('href', kode);
+
+  $('#copy-bookmarklet').addEventListener('click', () => {
+    navigator.clipboard.writeText(kode).then(
+      () =>
+        toast(
+          'Kode disalin. Buat bookmark baru, tempel kode ini sebagai alamatnya.',
+          'ok'
+        ),
+      () => toast('Gagal menyalin kode.', 'bad')
+    );
+  });
+}
+
+// Menerima kiriman dari bookmarklet. Hanya dilayani bila tab ini memang dibuka
+// olehnya (?collect=1), supaya halaman lain tidak bisa menyuruh kita memindai.
+function dengarkanKiriman() {
+  const menunggu = new URLSearchParams(location.search).get('collect') === '1';
+  if (!menunggu) return;
+
+  el.pageInfo.hidden = false;
+  el.pageInfo.textContent = 'Menunggu isi halaman dikirim dari tab sebelumnya…';
+
+  window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (!data || data.type !== 'ig-collect') return;
+    if (typeof data.html !== 'string' || typeof data.url !== 'string') return;
+
+    // Beri tahu pengirim agar berhenti mengulang.
+    try {
+      event.source?.postMessage('ig-collect-ok', event.origin);
+    } catch {
+      /* pengirim mungkin sudah tertutup */
+    }
+
+    if (state.images.length || el.btnScan.disabled) return; // sudah diproses
+    el.url.value = data.url;
+    el.pasteHtml.value = data.html;
+    updatePasteCount();
+    toast(`Isi halaman diterima (${(data.html.length / 1024).toFixed(0)} KB). Memindai…`, 'ok');
+    scan(null, data.html);
+  });
+}
+
 // ------------------------------------------------------- gerbang kata sandi
 //
 // Hanya muncul bila server dijalankan dengan IG_PASSWORD (mis. saat di-deploy
@@ -656,5 +728,7 @@ el.gateForm.addEventListener('submit', async (e) => {
 });
 
 checkSession();
+siapkanBookmarklet();
+dengarkanKiriman();
 renderHistory();
 el.url.focus();
