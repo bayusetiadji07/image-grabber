@@ -319,7 +319,8 @@ function mountThumb(card, img) {
 
     // Kemungkinan gambar butuh sesi login. Tab asal masih terbuka dan masih
     // login — minta dia yang mengambilkannya.
-    if (!img.blobUrl && bisaMintaKeTabAsal()) {
+    let pesanTabAsal = '';
+    if (!img.blobUrl && bisaMintaKeTabAsal() && tabAsalVersi >= 2) {
       box.innerHTML = '<span class="fail">Mencoba lewat tab asal…</span>';
       try {
         const blob = await mintaGambarKeTabAsal(img.url);
@@ -332,12 +333,14 @@ function mountThumb(card, img) {
           mountThumb(card, img);
           return;
         }
-      } catch {
-        /* jatuh ke penjelasan di bawah */
+        pesanTabAsal = 'Tab asal mengembalikan berkas kosong.';
+      } catch (err) {
+        pesanTabAsal = `Tab asal gagal mengambilnya: ${err.message}`;
       }
     }
 
-    const alasan = await alasanGagal(img.url);
+    // Urutan penjelasan: apa yang menghalangi lebih dulu, baru kata server.
+    const alasan = pesanTabAsal || alasanTabAsal() || (await alasanGagal(img.url));
     box.innerHTML =
       `<span class="fail">${escapeHtml(alasan || 'Pratinjau gagal dimuat.')}<br />` +
       '<button type="button" class="mini act-retry">Coba lagi</button></span>';
@@ -534,18 +537,62 @@ el.grid.addEventListener('click', (e) => {
     return;
   }
 
-  // Gambar yang diambil lewat tab asal sudah ada di memori — unduh langsung,
-  // jangan lewat server (server tidak punya sesi login ke situs itu).
-  if (e.target.classList.contains('act-unduh') && img.blobUrl) {
+  if (e.target.classList.contains('act-unduh')) {
+    // Selalu ditangani sendiri: kalau server gagal, browser jangan sampai
+    // menyimpan pesan galat JSON sebagai berkas (dulu muncul sebagai img.json).
     e.preventDefault();
-    const a = document.createElement('a');
-    a.href = img.blobUrl;
-    a.download = img.name;
-    a.click();
+    unduhSatu(img, e.target);
     return;
   }
   if (e.target.closest('.thumb') && !img.broken) openLightbox(img);
 });
+
+function simpanBlob(blob, nama) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nama;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+// Unduh satu gambar: pakai yang sudah ada di memori bila ada, kalau tidak
+// lewat server, dan bila server gagal — coba tab asal yang masih login.
+async function unduhSatu(img, tombol) {
+  const teksAsli = tombol.textContent;
+  tombol.textContent = 'Mengunduh…';
+  try {
+    if (img.blob) {
+      simpanBlob(img.blob, img.name);
+      return;
+    }
+
+    const res = await fetch(proxyUrl(img.url, { download: true, name: img.name }));
+    if (res.ok) {
+      simpanBlob(await res.blob(), img.name);
+      return;
+    }
+
+    const data = await res.json().catch(() => ({}));
+    if (bisaMintaKeTabAsal() && tabAsalVersi >= 2) {
+      tombol.textContent = 'Lewat tab asal…';
+      const blob = await mintaGambarKeTabAsal(img.url);
+      img.blob = blob;
+      img.blobUrl = URL.createObjectURL(blob);
+      img.size = blob.size;
+      patchCard(img);
+      simpanBlob(blob, img.name);
+      return;
+    }
+    toast(alasanTabAsal() || data.error || 'Gambar tidak bisa diunduh.', 'bad');
+  } catch (err) {
+    toast(err.message || 'Gambar tidak bisa diunduh.', 'bad');
+  } finally {
+    tombol.textContent = teksAsli;
+  }
+}
 
 function setSelection(list, value) {
   for (const img of list) img.selected = typeof value === 'function' ? value(img) : value;
@@ -666,12 +713,21 @@ el.pasteHtml.addEventListener('input', updatePasteCount);
 
 // ------------------------------------------------------------- lightbox
 
+let gambarLightbox = null;
+
 function openLightbox(img) {
-  el.lbImg.src = proxyUrl(img.url);
+  gambarLightbox = img;
+  el.lbImg.src = img.blobUrl || proxyUrl(img.url);
   el.lbInfo.textContent = `${img.name} · ${img.w ? `${img.w}×${img.h} · ` : ''}${formatBytes(img.size)} · ${img.format.toUpperCase()}`;
-  el.lbDl.href = proxyUrl(img.url, { download: true, name: img.name });
   el.lightbox.hidden = false;
 }
+
+// Unduhan dari lightbox lewat jalur yang sama dengan tombol di kartu, supaya
+// pesan galat tidak pernah ikut tersimpan sebagai berkas.
+el.lbDl.addEventListener('click', (e) => {
+  e.preventDefault();
+  if (gambarLightbox) unduhSatu(gambarLightbox, el.lbDl);
+});
 
 function closeLightbox() {
   el.lightbox.hidden = true;
@@ -711,7 +767,10 @@ function bookmarkletCode() {
     "window.addEventListener('message',function(e){" +
     "if(e.origin!==A){return;}" +
     "if(e.data==='ig-collect-ok'){clearInterval(t);return;}" +
-    "var m=e.data;if(!m||m.type!=='ig-fetch'){return;}" +
+    'var m=e.data;if(!m){return;}' +
+    // Jawaban sapaan: dipakai aplikasi untuk tahu bookmark ini sudah versi baru.
+    "if(m.type==='ig-ping'){w.postMessage({type:'ig-pong',versi:2},A);return;}" +
+    "if(m.type!=='ig-fetch'){return;}" +
     "fetch(m.url,{credentials:'include',mode:'cors'})" +
     '.then(function(r){if(!r.ok){throw new Error("HTTP "+r.status);}' +
     'return r.blob();})' +
@@ -748,8 +807,39 @@ function siapkanBookmarklet() {
 // gambarnya, lalu mengirim balik isinya.
 
 let tabAsal = null; // window pengirim bookmarklet
+let tabAsalVersi = 0; // 0 = belum menjawab sapaan (bookmark versi lama)
 let nomorPermintaan = 0;
 const menungguBytes = new Map();
+
+// Menyapa tab asal untuk memastikan bookmark-nya sudah versi yang bisa
+// mengambilkan gambar. Bookmark lama tidak menjawab, dan itu perlu
+// disampaikan ke pengguna — bukan dibiarkan gagal tanpa sebab.
+function sapaTabAsal() {
+  if (!bisaMintaKeTabAsal()) return;
+  try {
+    tabAsal.postMessage({ type: 'ig-ping' }, '*');
+  } catch {
+    /* abaikan */
+  }
+}
+
+// Pesan yang menjelaskan kenapa gambar berproteksi belum bisa diambil.
+function alasanTabAsal() {
+  if (!bisaMintaKeTabAsal()) {
+    return (
+      'Gambar ini perlu sesi login. Agar bisa diambil, buka halamannya lalu klik bookmark ' +
+      '"Ambil Gambar" — jangan tutup tab itu selama mengunduh.'
+    );
+  }
+  if (tabAsalVersi < 2) {
+    return (
+      'Bookmark "Ambil Gambar" Anda masih versi lama sehingga belum bisa mengambilkan gambar ' +
+      'berproteksi. Buka Image Grabber, seret ulang tombol birunya ke bilah bookmark ' +
+      '(timpa yang lama), lalu ulangi dari halaman sumber.'
+    );
+  }
+  return '';
+}
 
 function bisaMintaKeTabAsal() {
   try {
@@ -806,11 +896,18 @@ function dengarkanKiriman() {
       return;
     }
 
+    if (data.type === 'ig-pong') {
+      tabAsalVersi = Number(data.versi) || 1;
+      return;
+    }
+
     if (data.type !== 'ig-collect') return;
     if (typeof data.html !== 'string' || typeof data.url !== 'string') return;
 
     // Simpan tab pengirim: dia yang punya sesi login ke situs sumber.
     tabAsal = event.source;
+    tabAsalVersi = 0;
+    sapaTabAsal();
 
     // Beri tahu pengirim agar berhenti mengulang.
     try {
