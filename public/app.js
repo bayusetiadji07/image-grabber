@@ -715,7 +715,12 @@ el.gateForm.addEventListener('submit', async (e) => {
     if (res.ok) {
       hideGate();
       toast('Berhasil masuk.', 'ok');
-      el.url.focus();
+      // Kiriman dari bookmarklet yang datang saat masih terkunci: lanjutkan.
+      if (el.pasteHtml.value.trim() && el.url.value.trim() && !state.images.length) {
+        scan(null, el.pasteHtml.value);
+      } else {
+        el.url.focus();
+      }
     } else {
       showGate(data.error || 'Kata sandi salah.');
     }
